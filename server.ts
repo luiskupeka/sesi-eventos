@@ -49,6 +49,12 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  // Pre-set the password requested by user if not already set
+  const existingPassword = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get();
+  if (!existingPassword) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('admin_password', 'luis12345')").run();
+  }
 `);
 
 async function startServer() {
@@ -220,7 +226,7 @@ async function startServer() {
     const envPassword = process.env.ADMIN_PASSWORD;
     
     // Check environment variable first, then database
-    const adminPassword = envPassword || (storedPassword ? storedPassword.value : "sesi_internacional_admin");
+    const adminPassword = envPassword || (storedPassword ? storedPassword.value : "luis12345");
     
     if (password === adminPassword) {
       res.json({ success: true });
