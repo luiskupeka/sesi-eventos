@@ -87,6 +87,7 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Form States
   const [newEvent, setNewEvent] = useState<Partial<Event>>({
@@ -416,14 +417,70 @@ export default function App() {
                 >
                   Entrar no Painel
                 </button>
-                <button 
-                  type="button"
-                  onClick={() => setShowLoginModal(false)}
-                  className="w-full py-2 text-slate-400 text-sm font-bold hover:text-slate-600 transition-all"
-                >
-                  Cancelar
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setShowLoginModal(false);
+                      setShowForgotModal(true);
+                    }}
+                    className="w-full py-1 text-[#004a99] text-xs font-bold hover:underline transition-all"
+                  >
+                    Esqueci a senha
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setShowLoginModal(false)}
+                    className="w-full py-2 text-slate-400 text-sm font-bold hover:text-slate-600 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Forgot Password Modal */}
+      <AnimatePresence>
+        {showForgotModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowForgotModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border border-slate-200"
+            >
+              <div className="text-center mb-6">
+                <div className="bg-amber-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="w-8 h-8 text-amber-500" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-800">Recuperar Senha</h2>
+                <p className="text-slate-500 text-sm mt-2">
+                  Por segurança, a redefinição de senha deve ser solicitada ao administrador do sistema ou alterada via variáveis de ambiente.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  A senha padrão é definida no servidor. Se você esqueceu a senha personalizada, entre em contato com o suporte técnico do SESI Internacional.
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setShowForgotModal(false)}
+                className="w-full py-3.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all active:scale-95"
+              >
+                Entendi
+              </button>
             </motion.div>
           </div>
         )}
