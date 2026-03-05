@@ -190,7 +190,7 @@ async function startServer() {
   // Admin Login
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
-    const adminPassword = process.env.ADMIN_PASSWORD || "sesi_admin";
+    const adminPassword = process.env.ADMIN_PASSWORD || "sesi_internacional_admin";
     
     if (password === adminPassword) {
       res.json({ success: true });
