@@ -338,16 +338,20 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: adminPassword })
       });
+      
       if (res.ok) {
         setIsAdminAuthenticated(true);
         setShowLoginModal(false);
         setView('admin');
         setAdminPassword('');
       } else {
-        setLoginError('Senha incorreta. Tente novamente.');
+        const errorData = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
+        console.error('Login failed:', errorData);
+        setLoginError(errorData.error || 'Senha incorreta. Tente novamente.');
       }
     } catch (err) {
-      setLoginError('Erro ao conectar ao servidor.');
+      console.error('Network error during login:', err);
+      setLoginError('Erro ao conectar ao servidor. Verifique sua internet.');
     }
   };
 
