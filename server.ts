@@ -55,6 +55,18 @@ app.use(express.json());
 
 // API Routes
 
+// Admin Login
+app.post("/api/login", (req, res) => {
+  const { password } = req.body;
+  const adminPassword = process.env.ADMIN_PASSWORD || "2024"; // Fallback for dev
+  
+  if (password === adminPassword) {
+    res.json({ authorized: true });
+  } else {
+    res.status(401).json({ authorized: false, error: "Senha incorreta" });
+  }
+});
+
 // Get all events
 app.get("/api/events", (req, res) => {
   const events = db.prepare(`

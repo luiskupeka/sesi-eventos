@@ -330,8 +330,6 @@ export default function App() {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
 
-  const ADMIN_PIN = "2024"; // Você pode alterar este código aqui
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('admin') === 'true') {
@@ -341,18 +339,33 @@ export default function App() {
     }
   }, []);
 
-  const handlePinSubmit = (e?: React.FormEvent) => {
+  const handlePinSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (pinInput === ADMIN_PIN) {
-      setIsAdminAuthenticated(true);
-      setView('admin');
-      setShowPinModal(false);
-      setPinInput('');
-      setPinError(false);
-    } else {
+    setPinError(false);
+    
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pinInput })
+      });
+      
+      const data = await res.json();
+      
+      if (data.authorized) {
+        setIsAdminAuthenticated(true);
+        setView('admin');
+        setShowPinModal(false);
+        setPinInput('');
+      } else {
+        setPinError(true);
+        setPinInput('');
+        setTimeout(() => setPinError(false), 500);
+      }
+    } catch (err) {
+      console.error('Erro no login:', err);
       setPinError(true);
       setPinInput('');
-      // Efeito de vibração ou erro
       setTimeout(() => setPinError(false), 500);
     }
   };
