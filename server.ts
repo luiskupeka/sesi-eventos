@@ -44,17 +44,6 @@ db.exec(`
     data TEXT NOT NULL,
     FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
   );
-
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-
-  // Pre-set the password requested by user if not already set
-  const existingPassword = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get();
-  if (!existingPassword) {
-    db.prepare("INSERT INTO settings (key, value) VALUES ('admin_password', 'luis12345')").run();
-  }
 `);
 
 async function startServer() {
@@ -199,34 +188,9 @@ async function startServer() {
   });
 
   // Admin Login
-  app.get("/api/admin/check-setup", (req, res) => {
-    const passwordSet = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get();
-    res.json({ isSet: !!passwordSet });
-  });
-
-  app.post("/api/admin/setup", (req, res) => {
-    const { password } = req.body;
-    const passwordSet = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get();
-    
-    if (passwordSet) {
-      return res.status(400).json({ error: "Senha já configurada" });
-    }
-    
-    if (!password || password.length < 4) {
-      return res.status(400).json({ error: "A senha deve ter pelo menos 4 caracteres" });
-    }
-    
-    db.prepare("INSERT INTO settings (key, value) VALUES ('admin_password', ?)").run(password);
-    res.json({ success: true });
-  });
-
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
-    const storedPassword = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get();
-    const envPassword = process.env.ADMIN_PASSWORD;
-    
-    // Check environment variable first, then database
-    const adminPassword = envPassword || (storedPassword ? storedPassword.value : "luis12345");
+    const adminPassword = process.env.ADMIN_PASSWORD || "luis12345";
     
     if (password === adminPassword) {
       res.json({ success: true });

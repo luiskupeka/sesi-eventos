@@ -87,8 +87,6 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
-  const [isAdminSetup, setIsAdminSetup] = useState(false);
-  const [isCheckingSetup, setIsCheckingSetup] = useState(true);
 
   // Form States
   const [newEvent, setNewEvent] = useState<Partial<Event>>({
@@ -125,20 +123,7 @@ export default function App() {
 
   useEffect(() => {
     fetchEvents();
-    checkAdminSetup();
   }, []);
-
-  const checkAdminSetup = async () => {
-    try {
-      const res = await fetch('/api/admin/check-setup');
-      const data = await res.json();
-      setIsAdminSetup(data.isSet);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsCheckingSetup(false);
-    }
-  };
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -347,38 +332,6 @@ export default function App() {
     e.preventDefault();
     setLoginError('');
 
-    if (!isAdminSetup) {
-      // Setup mode
-      try {
-        const res = await fetch('/api/admin/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: adminPassword })
-        });
-        if (res.ok) {
-          setIsAdminSetup(true);
-          // Now login with the same password
-          const loginRes = await fetch('/api/admin/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: adminPassword })
-          });
-          if (loginRes.ok) {
-            setIsAdminAuthenticated(true);
-            setShowLoginModal(false);
-            setView('admin');
-            setAdminPassword('');
-          }
-        } else {
-          const data = await res.json();
-          setLoginError(data.error || 'Erro ao configurar senha');
-        }
-      } catch (err) {
-        setLoginError('Erro ao conectar ao servidor');
-      }
-      return;
-    }
-
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
@@ -437,23 +390,23 @@ export default function App() {
                   <Settings className="w-8 h-8 text-[#fff200]" />
                 </div>
                 <h2 className="text-2xl font-black text-slate-800">
-                  {isAdminSetup ? 'Acesso Restrito' : 'Configurar Painel'}
+                  Acesso Restrito
                 </h2>
                 <p className="text-slate-500 text-sm">
-                  {isAdminSetup ? 'Somente para pedagogos e administradores.' : 'Crie uma senha para o primeiro acesso.'}
+                  Somente para pedagogos e administradores.
                 </p>
               </div>
 
               <form onSubmit={handleAdminLogin} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    {isAdminSetup ? 'Senha de Acesso' : 'Nova Senha'}
+                    Senha de Acesso
                   </label>
                   <input 
                     type="password" 
                     autoFocus
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#004a99] outline-none transition-all"
-                    placeholder={isAdminSetup ? "Digite a senha..." : "Crie sua senha..."}
+                    placeholder="Digite a senha..."
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                   />
@@ -468,7 +421,7 @@ export default function App() {
                   type="submit"
                   className="w-full py-3.5 bg-[#004a99] text-white rounded-xl font-bold hover:bg-[#003d80] transition-all shadow-lg shadow-blue-100 active:scale-95"
                 >
-                  {isAdminSetup ? 'Entrar no Painel' : 'Criar Senha e Entrar'}
+                  Entrar no Painel
                 </button>
                 <button 
                   type="button"
