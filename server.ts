@@ -192,9 +192,15 @@ async function startServer() {
     const { password } = req.body;
     const adminPassword = "luis12345";
     
+    console.log(`[${new Date().toISOString()}] Login attempt from origin: ${req.get('origin') || 'unknown'}`);
+    console.log(`[${new Date().toISOString()}] Host: ${req.get('host')}`);
+    console.log(`[${new Date().toISOString()}] Password provided: ${password ? 'Yes' : 'No'}`);
+    
     if (password && password.trim() === adminPassword) {
+      console.log(`[${new Date().toISOString()}] Login successful`);
       res.json({ success: true });
     } else {
+      console.log(`[${new Date().toISOString()}] Login failed: Incorrect password`);
       res.status(401).json({ error: "Senha incorreta" });
     }
   });
