@@ -17,7 +17,8 @@ import {
   GripVertical,
   Copy,
   Printer,
-  Edit
+  Edit,
+  Lock as LockIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -83,9 +84,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginError, setLoginError] = useState('');
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
 
   // Form States
@@ -328,30 +326,34 @@ export default function App() {
     window.print();
   };
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
 
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: adminPassword })
-      });
-      
-      if (res.ok) {
-        setIsAdminAuthenticated(true);
-        setShowLoginModal(false);
-        setView('admin');
-        setAdminPassword('');
-      } else {
-        const errorData = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
-        console.error('Login failed:', errorData);
-        setLoginError(errorData.error || 'Senha incorreta. Tente novamente.');
-      }
-    } catch (err) {
-      console.error('Network error during login:', err);
-      setLoginError('Erro ao conectar ao servidor. Verifique sua internet.');
+  const ADMIN_PIN = "2024"; // Você pode alterar este código aqui
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === 'true') {
+      setShowPinModal(true);
+      // Limpar a URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const handlePinSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (pinInput === ADMIN_PIN) {
+      setIsAdminAuthenticated(true);
+      setView('admin');
+      setShowPinModal(false);
+      setPinInput('');
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPinInput('');
+      // Efeito de vibração ou erro
+      setTimeout(() => setPinError(false), 500);
     }
   };
 
@@ -359,7 +361,7 @@ export default function App() {
     if (isAdminAuthenticated) {
       setView('admin');
     } else {
-      setShowLoginModal(true);
+      setShowPinModal(true);
     }
   };
 
@@ -372,74 +374,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900">
-      {/* Admin Login Modal */}
-      <AnimatePresence>
-        {showLoginModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowLoginModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border border-slate-200"
-            >
-              <div className="text-center mb-8">
-                <div className="bg-[#004a99] w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-100">
-                  <Settings className="w-8 h-8 text-[#fff200]" />
-                </div>
-                <h2 className="text-2xl font-black text-slate-800">
-                  Acesso Restrito
-                </h2>
-                <p className="text-slate-500 text-sm">
-                  Somente para pedagogos e administradores.
-                </p>
-              </div>
-
-              <form onSubmit={handleAdminLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Senha de Acesso
-                  </label>
-                  <input 
-                    type="password" 
-                    autoFocus
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#004a99] outline-none transition-all"
-                    placeholder="Digite a senha..."
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                  />
-                  {loginError && (
-                    <p className="text-rose-500 text-xs font-bold flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {loginError}
-                    </p>
-                  )}
-                </div>
-                <button 
-                  type="submit"
-                  className="w-full py-3.5 bg-[#004a99] text-white rounded-xl font-bold hover:bg-[#003d80] transition-all shadow-lg shadow-blue-100 active:scale-95"
-                >
-                  Entrar no Painel
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setShowLoginModal(false)}
-                  className="w-full py-2 text-slate-400 text-sm font-bold hover:text-slate-600 transition-all"
-                >
-                  Cancelar
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* Header */}
       <header className="bg-[#004a99] text-white shadow-lg sticky top-0 z-50 no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -1105,7 +1039,7 @@ export default function App() {
       <footer className="mt-20 border-t border-slate-200 py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex justify-center mb-6">
-             <div className="bg-[#004a99] p-3 rounded-2xl">
+             <div className="bg-[#004a99] p-3 rounded-2xl cursor-pointer hover:scale-110 transition-transform active:scale-95" onClick={handleSwitchToAdmin}>
                 <Calendar className="w-8 h-8 text-[#fff200]" />
              </div>
           </div>
@@ -1113,10 +1047,106 @@ export default function App() {
           <div className="mt-4 flex justify-center gap-6 text-xs font-bold text-slate-400 uppercase tracking-widest">
             <a href="#" className="hover:text-[#004a99]">Privacidade</a>
             <a href="#" className="hover:text-[#004a99]">Termos</a>
-            <a href="#" className="hover:text-[#004a99]">Suporte</a>
+            <button onClick={handleSwitchToAdmin} className="opacity-0 hover:opacity-100 transition-opacity cursor-default">Admin</button>
           </div>
         </div>
       </footer>
+
+      {/* PIN Verification Modal */}
+      <AnimatePresence>
+        {showPinModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100"
+            >
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <LockIcon className="w-8 h-8 text-slate-400" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Verificação</h2>
+                <p className="text-slate-500 text-sm mb-8">Insira o código de segurança para acessar o painel administrativo.</p>
+
+                <form onSubmit={handlePinSubmit} className="space-y-8">
+                  <div className="flex justify-center gap-3">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div 
+                        key={i}
+                        className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${
+                          pinInput.length > i 
+                            ? 'bg-emerald-500 border-emerald-500 scale-110' 
+                            : pinError ? 'border-red-500 animate-shake' : 'border-slate-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => pinInput.length < 4 && setPinInput(prev => prev + num)}
+                        className="h-16 w-16 rounded-2xl bg-slate-50 text-xl font-bold text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors mx-auto"
+                      >
+                        {num}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPinInput('')}
+                      className="h-16 w-16 rounded-2xl bg-red-50 text-xs font-bold text-red-500 hover:bg-red-100 mx-auto"
+                    >
+                      Limpar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => pinInput.length < 4 && setPinInput(prev => prev + '0')}
+                      className="h-16 w-16 rounded-2xl bg-slate-50 text-xl font-bold text-slate-700 hover:bg-slate-100 mx-auto"
+                    >
+                      0
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPinInput(prev => prev.slice(0, -1))}
+                      className="h-16 w-16 rounded-2xl bg-slate-50 flex items-center justify-center hover:bg-slate-100 mx-auto"
+                    >
+                      <X className="w-6 h-6 text-slate-400" />
+                    </button>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPinModal(false);
+                        setPinInput('');
+                      }}
+                      className="flex-1 py-4 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-2xl transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={pinInput.length !== 4}
+                      className={`flex-1 py-4 rounded-2xl font-bold text-sm shadow-lg transition-all ${
+                        pinInput.length === 4 
+                          ? 'bg-emerald-600 text-white shadow-emerald-200 hover:bg-emerald-700' 
+                          : 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed'
+                      }`}
+                    >
+                      Verificar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
