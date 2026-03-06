@@ -9,7 +9,8 @@ import cors from "cors";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("events.db");
+const dbPath = path.resolve(__dirname, "events.db");
+const db = new Database(dbPath);
 
 // Initialize Database
 db.exec(`
@@ -48,147 +49,147 @@ db.exec(`
   );
 `);
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-  app.use(cors());
-  app.use(express.json());
+// API Routes
 
-  // API Routes
+// Get all events
+app.get("/api/events", (req, res) => {
+  const events = db.prepare(`
+    SELECT e.*, 
+    (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id) as current_registrations
+    FROM events e
+    ORDER BY e.created_at DESC
+  `).all();
+  res.json(events);
+});
+
+// Get single event with fields
+app.get("/api/events/:id", (req, res) => {
+  const event = db.prepare("SELECT * FROM events WHERE id = ?").get(req.params.id);
+  if (!event) return res.status(404).json({ error: "Event not found" });
   
-  // Get all events
-  app.get("/api/events", (req, res) => {
-    const events = db.prepare(`
-      SELECT e.*, 
-      (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.id) as current_registrations
-      FROM events e
-      ORDER BY e.created_at DESC
-    `).all();
-    res.json(events);
-  });
+  const fields = db.prepare("SELECT * FROM event_fields WHERE event_id = ?").all(req.params.id);
+  const registrationsCount = db.prepare("SELECT COUNT(*) as count FROM registrations WHERE event_id = ?").get(req.params.id);
+  
+  res.json({ ...event, fields, current_registrations: registrationsCount.count });
+});
 
-  // Get single event with fields
-  app.get("/api/events/:id", (req, res) => {
-    const event = db.prepare("SELECT * FROM events WHERE id = ?").get(req.params.id);
-    if (!event) return res.status(404).json({ error: "Event not found" });
+// Create event
+app.post("/api/events", (req, res) => {
+  const { name, type, description, date, time, max_vagas, deadline, classes_allowed, years_allowed, fields } = req.body;
+  
+  const insertEvent = db.prepare(`
+    INSERT INTO events (name, type, description, date, time, max_vagas, deadline, classes_allowed, years_allowed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  const transaction = db.transaction(() => {
+    const info = insertEvent.run(name, type, description, date, time, max_vagas, deadline, classes_allowed, years_allowed);
+    const eventId = info.lastInsertRowid;
     
-    const fields = db.prepare("SELECT * FROM event_fields WHERE event_id = ?").all(req.params.id);
-    const registrationsCount = db.prepare("SELECT COUNT(*) as count FROM registrations WHERE event_id = ?").get(req.params.id);
-    
-    res.json({ ...event, fields, current_registrations: registrationsCount.count });
-  });
-
-  // Create event
-  app.post("/api/events", (req, res) => {
-    const { name, type, description, date, time, max_vagas, deadline, classes_allowed, years_allowed, fields } = req.body;
-    
-    const insertEvent = db.prepare(`
-      INSERT INTO events (name, type, description, date, time, max_vagas, deadline, classes_allowed, years_allowed)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const insertField = db.prepare(`
+      INSERT INTO event_fields (event_id, field_name, field_label, field_type, is_required, options)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
     
-    const transaction = db.transaction(() => {
-      const info = insertEvent.run(name, type, description, date, time, max_vagas, deadline, classes_allowed, years_allowed);
-      const eventId = info.lastInsertRowid;
-      
-      const insertField = db.prepare(`
-        INSERT INTO event_fields (event_id, field_name, field_label, field_type, is_required, options)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `);
-      
-      for (const field of fields) {
-        insertField.run(eventId, field.field_name, field.field_label, field.field_type, field.is_required ? 1 : 0, field.options || null);
-      }
-      
-      return eventId;
+    for (const field of fields) {
+      insertField.run(eventId, field.field_name, field.field_label, field.field_type, field.is_required ? 1 : 0, field.options || null);
+    }
+    
+    return eventId;
+  });
+  
+  try {
+    const eventId = transaction();
+    res.json({ id: eventId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete event
+app.delete("/api/events/:id", (req, res) => {
+  db.prepare("DELETE FROM events WHERE id = ?").run(req.params.id);
+  res.json({ success: true });
+});
+
+// Update event
+app.put("/api/events/:id", (req, res) => {
+  const { name, type, description, date, time, max_vagas, deadline } = req.body;
+  const eventId = req.params.id;
+
+  try {
+    db.prepare(`
+      UPDATE events 
+      SET name = ?, type = ?, description = ?, date = ?, time = ?, max_vagas = ?, deadline = ?
+      WHERE id = ?
+    `).run(name, type, description, date, time, max_vagas, deadline, eventId);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Register for event
+app.post("/api/events/:id/register", (req, res) => {
+  const eventId = req.params.id;
+  const { data } = req.body;
+  
+  // Check spots
+  const event = db.prepare("SELECT max_vagas, deadline FROM events WHERE id = ?").get(eventId);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+  
+  const count = db.prepare("SELECT COUNT(*) as count FROM registrations WHERE event_id = ?").get(eventId);
+  
+  if (count.count >= event.max_vagas) {
+    return res.status(400).json({ error: "Acabaram as vagas deste evento, por favor escolha outro." });
+  }
+
+  // Check for duplicate registration by name and surname
+  const existingRegs = db.prepare("SELECT data FROM registrations WHERE event_id = ?").all(eventId);
+  const fullName = `${data.nome || ''} ${data.sobrenome || ''}`.trim().toLowerCase();
+  
+  if (fullName) {
+    const isDuplicate = existingRegs.some(r => {
+      const regData = JSON.parse(r.data);
+      const regFullName = `${regData.nome || ''} ${regData.sobrenome || ''}`.trim().toLowerCase();
+      return regFullName === fullName;
     });
-    
-    try {
-      const eventId = transaction();
-      res.json({ id: eventId });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+
+    if (isDuplicate) {
+      return res.status(400).json({ error: "Este aluno já está inscrito neste evento." });
     }
-  });
+  }
+  
+  const now = new Date();
+  const deadlineDate = new Date(event.deadline);
+  if (now > deadlineDate) {
+    return res.status(400).json({ error: "Inscrições encerradas" });
+  }
+  
+  db.prepare("INSERT INTO registrations (event_id, data) VALUES (?, ?)").run(eventId, JSON.stringify(data));
+  res.json({ success: true });
+});
 
-  // Delete event
-  app.delete("/api/events/:id", (req, res) => {
-    db.prepare("DELETE FROM events WHERE id = ?").run(req.params.id);
-    res.json({ success: true });
-  });
+// Get registrations for an event
+app.get("/api/events/:id/registrations", (req, res) => {
+  const regs = db.prepare("SELECT * FROM registrations WHERE event_id = ? ORDER BY registration_date DESC").all(req.params.id);
+  const fields = db.prepare("SELECT * FROM event_fields WHERE event_id = ?").all(req.params.id);
+  
+  const formattedRegs = regs.map(r => ({
+    ...r,
+    data: JSON.parse(r.data)
+  }));
+  
+  res.json({ registrations: formattedRegs, fields });
+});
 
-  // Update event
-  app.put("/api/events/:id", (req, res) => {
-    const { name, type, description, date, time, max_vagas, deadline } = req.body;
-    const eventId = req.params.id;
-
-    try {
-      db.prepare(`
-        UPDATE events 
-        SET name = ?, type = ?, description = ?, date = ?, time = ?, max_vagas = ?, deadline = ?
-        WHERE id = ?
-      `).run(name, type, description, date, time, max_vagas, deadline, eventId);
-      
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Register for event
-  app.post("/api/events/:id/register", (req, res) => {
-    const eventId = req.params.id;
-    const { data } = req.body;
-    
-    // Check spots
-    const event = db.prepare("SELECT max_vagas, deadline FROM events WHERE id = ?").get(eventId);
-    if (!event) return res.status(404).json({ error: "Event not found" });
-    
-    const count = db.prepare("SELECT COUNT(*) as count FROM registrations WHERE event_id = ?").get(eventId);
-    
-    if (count.count >= event.max_vagas) {
-      return res.status(400).json({ error: "Acabaram as vagas deste evento, por favor escolha outro." });
-    }
-
-    // Check for duplicate registration by name and surname
-    const existingRegs = db.prepare("SELECT data FROM registrations WHERE event_id = ?").all(eventId);
-    const fullName = `${data.nome || ''} ${data.sobrenome || ''}`.trim().toLowerCase();
-    
-    if (fullName) {
-      const isDuplicate = existingRegs.some(r => {
-        const regData = JSON.parse(r.data);
-        const regFullName = `${regData.nome || ''} ${regData.sobrenome || ''}`.trim().toLowerCase();
-        return regFullName === fullName;
-      });
-
-      if (isDuplicate) {
-        return res.status(400).json({ error: "Este aluno já está inscrito neste evento." });
-      }
-    }
-    
-    const now = new Date();
-    const deadlineDate = new Date(event.deadline);
-    if (now > deadlineDate) {
-      return res.status(400).json({ error: "Inscrições encerradas" });
-    }
-    
-    db.prepare("INSERT INTO registrations (event_id, data) VALUES (?, ?)").run(eventId, JSON.stringify(data));
-    res.json({ success: true });
-  });
-
-  // Get registrations for an event
-  app.get("/api/events/:id/registrations", (req, res) => {
-    const regs = db.prepare("SELECT * FROM registrations WHERE event_id = ? ORDER BY registration_date DESC").all(req.params.id);
-    const fields = db.prepare("SELECT * FROM event_fields WHERE event_id = ?").all(req.params.id);
-    
-    const formattedRegs = regs.map(r => ({
-      ...r,
-      data: JSON.parse(r.data)
-    }));
-    
-    res.json({ registrations: formattedRegs, fields });
-  });
+async function startServer() {
+  const PORT = 3000;
 
   // Vite middleware for development or production static serving
   const isProduction = process.env.NODE_ENV === "production" || fs.existsSync(path.join(__dirname, "dist"));
@@ -218,4 +219,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
