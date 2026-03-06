@@ -190,9 +190,9 @@ async function startServer() {
   // Admin Login
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
-    const adminPassword = process.env.ADMIN_PASSWORD || "luis12345";
+    const adminPassword = "luis12345";
     
-    if (password === adminPassword) {
+    if (password && password.trim() === adminPassword) {
       res.json({ success: true });
     } else {
       res.status(401).json({ error: "Senha incorreta" });
